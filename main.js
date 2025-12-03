@@ -21,9 +21,8 @@ function createWindow() {
     {
       label: 'View',
       submenu: [
-        { label: 'Landing Page', click: () => mainWindow.loadFile('landing.html') },
-        { label: 'AI Detection', click: () => mainWindow.loadFile('detection.html') },
-        { label: 'Dashboard', click: () => mainWindow.loadFile('index.html') },
+        { label: 'Home', click: () => mainWindow.loadFile('landing.html') },
+        { label: 'Detection', click: () => mainWindow.loadFile('detection.html') },
         { type: 'separator' },
         { role: 'reload' },
         { role: 'toggleDevTools' }
