@@ -229,8 +229,9 @@ async function processImage(filename) {
             // Update stats - count by class type
             let soldierCount = 0, civilianCount = 0, otherCount = 0;
             data.detections.forEach(det => {
-                if (det.class === 'Soldier') soldierCount++;
-                else if (det.class === 'Civilian') civilianCount++;
+                const className = det.class.toLowerCase();
+                if (className === 'soldier') soldierCount++;
+                else if (className === 'civilian') civilianCount++;
                 else otherCount++;
             });
             
@@ -325,8 +326,9 @@ function startProgressMonitoring() {
                 
                 latestDetections.forEach(frame => {
                     frame.detections.forEach(det => {
-                        if (det.class === 'Soldier') soldierCount++;
-                        else if (det.class === 'Civilian') civilianCount++;
+                        const className = det.class.toLowerCase();
+                        if (className === 'soldier') soldierCount++;
+                        else if (className === 'civilian') civilianCount++;
                         else otherCount++;
                     });
                 });

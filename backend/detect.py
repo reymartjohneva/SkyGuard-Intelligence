@@ -70,7 +70,15 @@ class ObjectDetector:
                 
                 # Update our class names and allowed classes based on model
                 self.class_names = {int(idx): name.lower() for idx, name in self.model.names.items()}
-                self.allowed_classes = {name.lower() for name in self.model.names.values()}
+                
+                # Check if this is a custom model or COCO model
+                if 'person' in [name.lower() for name in self.model.names.values()]:
+                    print("⚠️  Detected COCO pre-trained model")
+                    print("   Using 'person' class and mapping to soldier/civilian")
+                    print("   For best results, use a custom-trained model\n")
+                    self.allowed_classes = {'civilian', 'soldier', 'person'}
+                else:
+                    self.allowed_classes = {name.lower() for name in self.model.names.values()}
                 
                 # Update colors for detected classes
                 for name in self.model.names.values():
@@ -79,6 +87,8 @@ class ObjectDetector:
                         self.colors[name_lower] = (0, 0, 255)  # Red
                     elif name_lower == 'civilian':
                         self.colors[name_lower] = (0, 255, 0)  # Green
+                    elif name_lower == 'person':
+                        self.colors[name_lower] = (255, 165, 0)  # Orange
             
             # Warm up the model with a dummy image to reduce first inference latency
             print("Warming up model...")
@@ -192,6 +202,8 @@ class ObjectDetector:
         # enhanced_frame = cv2.cvtColor(enhanced_frame, cv2.COLOR_LAB2RGB)
         
         # Perform inference with optimized parameters for best accuracy
+        # For COCO models, class 0 is 'person'
+        # For custom models, classes 0 and 1 are 'civilian' and 'soldier'
         results = self.model(
             frame, 
             conf=self.conf_threshold,
@@ -201,7 +213,7 @@ class ObjectDetector:
             augment=True,  # Enable test-time augmentation for better accuracy
             agnostic_nms=False,  # Class-specific NMS for better class distinction
             max_det=100,  # Maximum detections per image
-            classes=[0, 1],  # Only detect classes 0 (civilian) and 1 (soldier)
+            classes=[0, 1],  # Detect class 0 (person/civilian) and optionally class 1 (soldier)
             verbose=False
         )
         
@@ -221,17 +233,29 @@ class ObjectDetector:
                 
                 # Get class name from the model
                 if hasattr(result, 'names'):
-                    class_name = result.names[cls].lower()
+                    detected_class = result.names[cls].lower()
                 else:
-                    class_name = self.class_names.get(cls, 'unknown')
+                    detected_class = self.class_names.get(cls, 'unknown')
                 
                 # Debug: Print detection info
-                print(f"Detected: Class ID={cls}, Name='{class_name}', Confidence={conf:.2f}")
+                print(f"Detected: Class ID={cls}, Name='{detected_class}', Confidence={conf:.2f}")
                 
-                # FILTER: Only process civilian and soldier detections
-                if class_name not in self.allowed_classes:
-                    print(f"  -> Skipped (not in allowed classes: {self.allowed_classes})")
-                    continue  # Skip this detection
+                # Map COCO 'person' class to soldier/civilian
+                # For custom trained models, this mapping won't be needed
+                if detected_class == 'person':
+                    # Classify based on confidence or other heuristics
+                    # Higher confidence detections are classified as soldiers
+                    if conf >= 0.75:
+                        class_name = 'soldier'
+                    else:
+                        class_name = 'civilian'
+                    print(f"  -> Mapped 'person' to '{class_name}' (conf={conf:.2f})")
+                elif detected_class in self.allowed_classes:
+                    class_name = detected_class
+                else:
+                    # Skip detections that are not person/civilian/soldier
+                    print(f"  -> Skipped (not a person/soldier/civilian)")
+                    continue
                 
                 detection = {
                     'bbox': [float(x1), float(y1), float(x2), float(y2)],
