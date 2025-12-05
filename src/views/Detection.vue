@@ -294,33 +294,47 @@ const uploadFile = async () => {
   formData.append(currentFileType.value, currentFile.value)
   
   try {
-    const response = await axios.post(`${API_BASE}/upload`, formData)
+    const response = await axios.post(`${API_BASE}/upload`, formData, {
+      timeout: 60000 // 60 second timeout
+    })
     const data = response.data
     return data.success ? data.filename : null
   } catch (error) {
     console.error('Upload error:', error)
+    alert('Failed to upload file. Please check your connection and try again.')
     return null
   }
 }
 
 const startProcessing = async () => {
-  const serverHealthy = await checkServerHealth()
-  if (!serverHealthy) {
-    alert('Backend server is not running.')
-    return
-  }
-  
-  const filename = await uploadFile()
-  if (!filename) return
-  
-  if (currentFileType.value === 'image') {
-    await processImage(filename)
-  } else {
-    await processVideo(filename)
+  try {
+    const serverHealthy = await checkServerHealth()
+    if (!serverHealthy) {
+      alert('Backend server is not running. Please start the server first.')
+      return
+    }
+    
+    const filename = await uploadFile()
+    if (!filename) {
+      isProcessing.value = false
+      return
+    }
+    
+    if (currentFileType.value === 'image') {
+      await processImage(filename)
+    } else {
+      await processVideo(filename)
+    }
+  } catch (error) {
+    console.error('Processing error:', error)
+    alert('An error occurred during processing. Please try again.')
+    isProcessing.value = false
   }
 }
 
 const processImage = async (filename) => {
+  isProcessing.value = true
+  
   try {
     const response = await axios.post(`${API_BASE}/detect/image`, {
       filename: filename
@@ -341,13 +355,20 @@ const processImage = async (filename) => {
       totalDetections.value = data.count
       soldierCount.value = soldiers
       civilianCount.value = civilians
+      progress.value = 100
+      framesProcessed.value = 1
     }
   } catch (error) {
     console.error('Image processing error:', error)
+    alert('Failed to process image. Please try again.')
+  } finally {
+    isProcessing.value = false
   }
 }
 
 const processVideo = async (filename) => {
+  isProcessing.value = true
+  
   try {
     const response = await axios.post(`${API_BASE}/detect/video`, {
       filename: filename,
@@ -358,25 +379,25 @@ const processVideo = async (filename) => {
     
     if (data.success) {
       currentJobId.value = data.job_id
-      isProcessing.value = true
       
       nextTick(() => {
         if (videoCanvas.value) {
           const canvas = videoCanvas.value
           const ctx = canvas.getContext('2d')
-          const container = canvas.parentElement
-          canvas.width = container.clientWidth || 1280
-          canvas.height = (canvas.width * 9) / 16
-          // Clear canvas
+          // Clear canvas initially
           ctx.clearRect(0, 0, canvas.width, canvas.height)
         }
       })
       
       startProgressMonitoring()
       connectToStream(currentJobId.value)
+    } else {
+      throw new Error('Failed to start video processing')
     }
   } catch (error) {
     console.error('Video processing error:', error)
+    alert('Failed to start video processing. Please try again.')
+    isProcessing.value = false
   }
 }
 
@@ -400,11 +421,30 @@ const connectToStream = (jobId) => {
           img.onload = () => {
             const container = canvas.parentElement
             const containerWidth = container.clientWidth
-            const aspectRatio = img.height / img.width
+            const containerHeight = container.clientHeight
             
-            canvas.width = containerWidth
-            canvas.height = containerWidth * aspectRatio
+            // Calculate scaling to fit entire video while maintaining aspect ratio
+            const videoAspectRatio = img.width / img.height
+            const containerAspectRatio = containerWidth / containerHeight
             
+            let canvasWidth, canvasHeight
+            
+            if (videoAspectRatio > containerAspectRatio) {
+              // Video is wider than container - fit to width
+              canvasWidth = containerWidth
+              canvasHeight = containerWidth / videoAspectRatio
+            } else {
+              // Video is taller than container - fit to height
+              canvasHeight = containerHeight
+              canvasWidth = containerHeight * videoAspectRatio
+            }
+            
+            canvas.width = img.width
+            canvas.height = img.height
+            canvas.style.width = `${canvasWidth}px`
+            canvas.style.height = `${canvasHeight}px`
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
           }
           img.src = `data:image/jpeg;base64,${data.frame}`
@@ -510,6 +550,7 @@ onUnmounted(() => {
   height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   overflow: hidden;
+  position: relative;
 }
 
 .detection-grid {
@@ -523,10 +564,14 @@ onUnmounted(() => {
 .sidebar {
   background: #f8f9fa;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 1rem;
   padding: 1.5rem;
+  height: 100vh;
+  position: relative;
+  -webkit-overflow-scrolling: touch;
 }
 
 .header-section {
@@ -632,6 +677,8 @@ h2 {
 .upload-area.processing {
   opacity: 0.7;
   cursor: not-allowed;
+  pointer-events: none;
+  user-select: none;
 }
 
 .upload-icon {
@@ -788,8 +835,11 @@ h2 {
 .preview-canvas, .preview-image {
   max-width: 100%;
   max-height: 100%;
-  border-radius: 12px;
+  width: auto;
+  height: auto;
+  border-radius: 8px;
   object-fit: contain;
+  display: block;
 }
 
 .preview-placeholder {
