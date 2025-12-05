@@ -165,6 +165,10 @@ const detectedImageUrl = ref(null)
 const videoCanvas = ref(null)
 let eventSource = null
 let statusCheckInterval = null
+let frameBuffer = []
+let animationFrameId = null
+let lastRenderTime = 0
+let isRendering = false
 
 // Computed
 const uploadText = computed(() => {
@@ -231,6 +235,17 @@ const cleanupPreviousProcessing = () => {
     clearInterval(statusCheckInterval)
     statusCheckInterval = null
   }
+  
+  // Clear animation frame
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId)
+    animationFrameId = null
+  }
+  
+  // Clear frame buffer
+  frameBuffer = []
+  isRendering = false
+  lastRenderTime = 0
   
   // Reset state
   isProcessing.value = false
@@ -401,10 +416,92 @@ const processVideo = async (filename) => {
   }
 }
 
+const renderNextFrame = () => {
+  if (!videoCanvas.value || frameBuffer.length === 0) {
+    isRendering = false
+    return
+  }
+  
+  const canvas = videoCanvas.value
+  const ctx = canvas.getContext('2d')
+  const frameData = frameBuffer.shift()
+  
+  if (frameData) {
+    const img = new Image()
+    img.onload = () => {
+      const container = canvas.parentElement
+      const containerWidth = container.clientWidth
+      const containerHeight = container.clientHeight
+      
+      // Calculate scaling to fit entire video while maintaining aspect ratio
+      const videoAspectRatio = img.width / img.height
+      const containerAspectRatio = containerWidth / containerHeight
+      
+      let canvasWidth, canvasHeight
+      
+      if (videoAspectRatio > containerAspectRatio) {
+        canvasWidth = containerWidth
+        canvasHeight = containerWidth / videoAspectRatio
+      } else {
+        canvasHeight = containerHeight
+        canvasWidth = containerHeight * videoAspectRatio
+      }
+      
+      canvas.width = img.width
+      canvas.height = img.height
+      canvas.style.width = `${canvasWidth}px`
+      canvas.style.height = `${canvasHeight}px`
+      
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      
+      lastRenderTime = performance.now()
+      
+      // Update detection stats
+      if (frameData.detections) {
+        let soldiers = 0, civilians = 0
+        frameData.detections.forEach(det => {
+          const className = det.class.toLowerCase()
+          if (className === 'soldier') soldiers++
+          else if (className === 'civilian') civilians++
+        })
+        
+        soldierCount.value = soldiers
+        civilianCount.value = civilians
+        totalDetections.value = soldiers + civilians
+      }
+      
+      // Schedule next frame rendering
+      if (frameBuffer.length > 0) {
+        // If buffer is getting large, skip frames to catch up
+        if (frameBuffer.length > 10) {
+          console.log(`Frame buffer large (${frameBuffer.length}), dropping frames`)
+          frameBuffer.splice(0, frameBuffer.length - 5)
+        }
+        animationFrameId = requestAnimationFrame(renderNextFrame)
+      } else {
+        isRendering = false
+      }
+    }
+    img.onerror = () => {
+      console.error('Failed to load frame image')
+      isRendering = false
+    }
+    img.src = `data:image/jpeg;base64,${frameData.frame}`
+  } else {
+    isRendering = false
+  }
+}
+
 const connectToStream = (jobId) => {
   if (eventSource) {
     eventSource.close()
   }
+  
+  // Reset frame buffer and rendering state
+  frameBuffer = []
+  isRendering = false
+  lastRenderTime = 0
   
   eventSource = new EventSource(`${API_BASE}/stream/${jobId}`)
   
@@ -413,54 +510,17 @@ const connectToStream = (jobId) => {
       const data = JSON.parse(event.data)
       
       if (data.type === 'frame') {
-        if (videoCanvas.value) {
-          const canvas = videoCanvas.value
-          const ctx = canvas.getContext('2d')
-          
-          const img = new Image()
-          img.onload = () => {
-            const container = canvas.parentElement
-            const containerWidth = container.clientWidth
-            const containerHeight = container.clientHeight
-            
-            // Calculate scaling to fit entire video while maintaining aspect ratio
-            const videoAspectRatio = img.width / img.height
-            const containerAspectRatio = containerWidth / containerHeight
-            
-            let canvasWidth, canvasHeight
-            
-            if (videoAspectRatio > containerAspectRatio) {
-              // Video is wider than container - fit to width
-              canvasWidth = containerWidth
-              canvasHeight = containerWidth / videoAspectRatio
-            } else {
-              // Video is taller than container - fit to height
-              canvasHeight = containerHeight
-              canvasWidth = containerHeight * videoAspectRatio
-            }
-            
-            canvas.width = img.width
-            canvas.height = img.height
-            canvas.style.width = `${canvasWidth}px`
-            canvas.style.height = `${canvasHeight}px`
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height)
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-          }
-          img.src = `data:image/jpeg;base64,${data.frame}`
-        }
+        // Add frame to buffer
+        frameBuffer.push({
+          frame: data.frame,
+          detections: data.detections,
+          timestamp: performance.now()
+        })
         
-        if (data.detections) {
-          let soldiers = 0, civilians = 0
-          data.detections.forEach(det => {
-            const className = det.class.toLowerCase()
-            if (className === 'soldier') soldiers++
-            else if (className === 'civilian') civilians++
-          })
-          
-          soldierCount.value = soldiers
-          civilianCount.value = civilians
-          totalDetections.value = soldiers + civilians
+        // Start rendering if not already rendering
+        if (!isRendering && videoCanvas.value) {
+          isRendering = true
+          animationFrameId = requestAnimationFrame(renderNextFrame)
         }
       } else if (data.type === 'complete') {
         eventSource.close()
@@ -541,6 +601,10 @@ onUnmounted(() => {
   if (statusCheckInterval) {
     clearInterval(statusCheckInterval)
   }
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId)
+  }
+  frameBuffer = []
 })
 </script>
 

@@ -181,24 +181,20 @@ def detect_video():
         'output_file': output_filename
     }
     
-    # Create frame stream queue with larger buffer
-    frame_streams[job_id] = queue.Queue(maxsize=30)
+    # Create frame stream queue with larger buffer to prevent dropping frames
+    frame_streams[job_id] = queue.Queue(maxsize=60)
     
     def process_video_thread():
         try:
             all_detections = []
             frame_skip = data.get('frame_skip', 1)
             
-            # Frame rate limiting for smooth streaming
-            last_frame_time = time.time()
-            min_frame_interval = 1.0 / 30  # Limit to ~30 FPS max
-            
             for result in detector.process_video(video_path, output_path, frame_skip):
                 # Update progress
                 processing_status[job_id]['progress'] = result['progress']
                 
-                # Convert frame to base64 with compression for faster transmission
-                frame_base64 = detector.frame_to_base64(result['frame'], quality=70)
+                # Convert frame to base64 with lower quality for faster transmission
+                frame_base64 = detector.frame_to_base64(result['frame'], quality=60)
                 
                 # Store detections
                 detection_summary = {
@@ -215,26 +211,21 @@ def detect_video():
                 
                 processing_status[job_id]['detections'] = all_detections
                 
-                # Stream frame to client with rate limiting
-                current_time = time.time()
-                time_since_last = current_time - last_frame_time
-                
-                # Only send frame if enough time has passed (prevents overwhelming client)
-                if time_since_last >= min_frame_interval:
-                    try:
-                        stream_data = {
-                            'type': 'frame',
-                            'frame': frame_base64,
-                            'frame_number': result['frame_number'],
-                            'progress': result['progress'],
-                            'detections': result['detections'],
-                            'count': result['count']
-                        }
-                        frame_streams[job_id].put(stream_data, block=False)
-                        last_frame_time = current_time
-                    except queue.Full:
-                        # Skip frame if queue is full
-                        pass
+                # Stream frame to client without rate limiting
+                try:
+                    stream_data = {
+                        'type': 'frame',
+                        'frame': frame_base64,
+                        'frame_number': result['frame_number'],
+                        'progress': result['progress'],
+                        'detections': result['detections'],
+                        'count': result['count']
+                    }
+                    # Use put with timeout to avoid blocking
+                    frame_streams[job_id].put(stream_data, block=True, timeout=0.1)
+                except queue.Full:
+                    # Skip frame if queue is full (client is lagging)
+                    pass
             
             # Mark as complete
             processing_status[job_id]['status'] = 'completed'

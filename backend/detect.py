@@ -326,8 +326,9 @@ class ObjectDetector:
         writer = None
         if output_path:
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            # Adjust output FPS based on frame skip to maintain original playback speed
-            output_fps = fps / frame_skip
+            # Keep original FPS for output video to maintain timing
+            # Frame skip only affects processing, not output playback speed
+            output_fps = fps
             writer = cv2.VideoWriter(output_path, fourcc, output_fps, (width, height))
             print(f"Output video FPS: {output_fps:.2f} (original: {fps}, frame_skip: {frame_skip})")
         
