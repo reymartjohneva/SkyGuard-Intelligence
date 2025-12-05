@@ -5,25 +5,29 @@ const { spawn } = require('child_process');
 let mainWindow;
 let pythonProcess = null;
 
+// Check if we're in development mode
+const isDev = !app.isPackaged;
+
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: 1920,
+    height: 1080,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
     },
     icon: path.join(__dirname, 'assets/icon.png')
   });
+
+  // Maximize window on startup
+  mainWindow.maximize();
 
   // Create menu
   const menu = Menu.buildFromTemplate([
     {
       label: 'View',
       submenu: [
-        { label: 'Home', click: () => mainWindow.loadFile('landing.html') },
-        { label: 'Detection', click: () => mainWindow.loadFile('detection.html') },
-        { type: 'separator' },
         { role: 'reload' },
         { role: 'toggleDevTools' }
       ]
@@ -44,11 +48,12 @@ function createWindow() {
   ]);
   Menu.setApplicationMenu(menu);
 
-  mainWindow.loadFile('landing.html');
-
-  // Open DevTools in development mode
-  if (process.argv.includes('--dev')) {
+  // Load the app
+  if (isDev) {
+    mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
+  } else {
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
   mainWindow.on('closed', () => {
@@ -64,7 +69,7 @@ function startPythonServer() {
 
   console.log('Starting Python server...');
   
-  const serverPath = path.join(__dirname, 'backend', 'server.py');
+  const serverPath = path.join(__dirname, '../backend', 'server.py');
   pythonProcess = spawn('python', [serverPath]);
 
   pythonProcess.stdout.on('data', (data) => {
@@ -91,8 +96,10 @@ function stopPythonServer() {
 
 app.on('ready', () => {
   createWindow();
-  // Auto-start Python server (optional)
-  // startPythonServer();
+  // Auto-start Python server
+  setTimeout(() => {
+    startPythonServer();
+  }, 1000);
 });
 
 app.on('window-all-closed', () => {

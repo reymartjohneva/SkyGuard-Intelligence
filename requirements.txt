@@ -5,7 +5,7 @@
 torch>=2.0.0
 torchvision>=0.15.0
 
-# YOLOv8 Object Detection
+# YOLOv8 & YOLO11 Object Detection
 ultralytics>=8.0.0
 
 # Computer Vision

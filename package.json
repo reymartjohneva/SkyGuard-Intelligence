@@ -1,22 +1,42 @@
 {
   "name": "aerial-threat-detection",
-  "version": "1.0.0",
-  "description": "Aerial Threat Detection Desktop Application",
-  "main": "main.js",
+  "version": "2.0.0",
+  "description": "Aerial Threat Detection Desktop Application with YOLO11s & YOLOv8s",
+  "main": "electron/main.js",
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --dev"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "vite build && electron-builder",
+    "start": "npm run electron:dev",
+    "server": "python backend/server.py",
+    "setup": "npm install && pip install -r requirements.txt"
   },
   "keywords": [
     "electron",
+    "vue",
     "desktop",
     "aerial",
     "threat",
-    "detection"
+    "detection",
+    "yolo",
+    "ai",
+    "computer-vision"
   ],
   "author": "",
   "license": "MIT",
+  "dependencies": {
+    "vue": "^3.3.4",
+    "vue-router": "^4.2.5",
+    "axios": "^1.6.0"
+  },
   "devDependencies": {
-    "electron": "^28.0.0"
+    "@vitejs/plugin-vue": "^4.4.0",
+    "concurrently": "^8.2.2",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "vite": "^5.0.0",
+    "wait-on": "^7.2.0"
   }
 }

@@ -13,18 +13,20 @@ import base64
 from datetime import datetime
 
 class ObjectDetector:
-    def __init__(self, model_path='models/yolov8s.pt', conf_threshold=0.35):
+    def __init__(self, model_path='models/yolov8s.pt', conf_threshold=0.25):
         """
         Initialize the object detector
         
         Args:
-            model_path: Path to YOLOv8 model file
-            conf_threshold: Confidence threshold for detections (optimized for accuracy)
+            model_path: Path to YOLO model file (supports YOLOv8s and YOLO11s)
+            conf_threshold: Confidence threshold for detections (lowered for better recall)
         """
         self.model_path = model_path
+        self.model_name = Path(model_path).stem  # Get model name without extension
         self.conf_threshold = conf_threshold
-        self.iou_threshold = 0.5  # IOU threshold for NMS (higher = less overlap allowed)
-        self.imgsz = 640  # Image size for inference (higher = better accuracy)
+        self.iou_threshold = 0.45  # IOU threshold for NMS (lower = allow more overlapping detections)
+        self.imgsz = 640  # Image size for inference
+        self.max_det = 300  # Maximum detections per image
         self.model = None
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.half = False  # Half precision mode
@@ -44,12 +46,15 @@ class ObjectDetector:
             'civilian': (0, 255, 0)      # Green
         }
         
+        # Augmentation settings for better detection
+        self.augment = True  # Enable test-time augmentation
+        
         self.load_model()
     
     def load_model(self):
-        """Load the YOLOv8 model with optimizations"""
+        """Load the YOLO model (YOLOv8s or YOLO11s) with optimizations"""
         try:
-            print(f"Loading model from {self.model_path}")
+            print(f"Loading model: {self.model_name} from {self.model_path}")
             print(f"Using device: {self.device}")
             
             self.model = YOLO(self.model_path)
@@ -94,13 +99,26 @@ class ObjectDetector:
             print("Warming up model...")
             dummy_img = np.zeros((self.imgsz, self.imgsz, 3), dtype=np.uint8)
             _ = self.model(dummy_img, conf=self.conf_threshold, iou=self.iou_threshold, 
-                          imgsz=self.imgsz, half=self.half, verbose=False)
+                          imgsz=self.imgsz, half=self.half, max_det=self.max_det, 
+                          agnostic_nms=False, verbose=False)
             
-            print("Model loaded and warmed up successfully!")
-            print(f"Detection settings: conf={self.conf_threshold}, iou={self.iou_threshold}, imgsz={self.imgsz}")
+            print(f"✅ Model {self.model_name} loaded and warmed up successfully!")
+            print(f"Detection settings: conf={self.conf_threshold}, iou={self.iou_threshold}, imgsz={self.imgsz}, max_det={self.max_det}")
+            print(f"Augmentation: {'Enabled' if self.augment else 'Disabled'}")
             return True
         except Exception as e:
             print(f"Error loading model: {e}")
+            return False
+    
+    def switch_model(self, new_model_path):
+        """Switch to a different YOLO model on the fly"""
+        try:
+            print(f"\nSwitching model from {self.model_name} to {Path(new_model_path).stem}...")
+            self.model_path = new_model_path
+            self.model_name = Path(new_model_path).stem
+            return self.load_model()
+        except Exception as e:
+            print(f"Error switching model: {e}")
             return False
     
     def draw_detections(self, frame, detections):
@@ -173,12 +191,13 @@ class ObjectDetector:
         
         return annotated_frame
     
-    def detect_frame(self, frame):
+    def detect_frame(self, frame, use_enhancement=False):
         """
         Perform detection on a single frame with optimized settings
         
         Args:
             frame: Input frame (numpy array)
+            use_enhancement: Apply CLAHE enhancement (slower but better for low-light)
             
         Returns:
             dict: Detection results and annotated frame
@@ -193,27 +212,31 @@ class ObjectDetector:
         elif frame.shape[2] == 4:  # RGBA
             frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2RGB)
         
-        # Apply slight contrast enhancement for better feature extraction
-        # lab = cv2.cvtColor(frame, cv2.COLOR_RGB2LAB)
-        # l, a, b = cv2.split(lab)
-        # clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        # l = clahe.apply(l)
-        # enhanced_frame = cv2.merge([l, a, b])
-        # enhanced_frame = cv2.cvtColor(enhanced_frame, cv2.COLOR_LAB2RGB)
+        # Optional: Apply CLAHE for better detection in varying lighting
+        # Disabled by default for better performance during real-time streaming
+        if use_enhancement:
+            lab = cv2.cvtColor(frame, cv2.COLOR_RGB2LAB)
+            l, a, b = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8,8))
+            l = clahe.apply(l)
+            enhanced_frame = cv2.merge([l, a, b])
+            enhanced_frame = cv2.cvtColor(enhanced_frame, cv2.COLOR_LAB2RGB)
+        else:
+            enhanced_frame = frame
         
         # Perform inference with optimized parameters for best accuracy
         # For COCO models, class 0 is 'person'
         # For custom models, classes 0 and 1 are 'civilian' and 'soldier'
         results = self.model(
-            frame, 
+            enhanced_frame, 
             conf=self.conf_threshold,
             iou=self.iou_threshold,
             imgsz=self.imgsz,
             half=self.half,
-            augment=True,  # Enable test-time augmentation for better accuracy
+            augment=self.augment,  # Enable test-time augmentation for better accuracy
             agnostic_nms=False,  # Class-specific NMS for better class distinction
-            max_det=100,  # Maximum detections per image
-            classes=[0, 1],  # Detect class 0 (person/civilian) and optionally class 1 (soldier)
+            max_det=self.max_det,  # Maximum detections per image
+            classes=[0, 1],  # Detect class 0 (person/civilian) and class 1 (soldier)
             verbose=False
         )
         
@@ -303,7 +326,10 @@ class ObjectDetector:
         writer = None
         if output_path:
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+            # Adjust output FPS based on frame skip to maintain original playback speed
+            output_fps = fps / frame_skip
+            writer = cv2.VideoWriter(output_path, fourcc, output_fps, (width, height))
+            print(f"Output video FPS: {output_fps:.2f} (original: {fps}, frame_skip: {frame_skip})")
         
         frame_count = 0
         processed_count = 0
@@ -341,9 +367,11 @@ class ObjectDetector:
             if writer:
                 writer.release()
     
-    def frame_to_base64(self, frame):
-        """Convert frame to base64 for transmission"""
-        _, buffer = cv2.imencode('.jpg', frame)
+    def frame_to_base64(self, frame, quality=70):
+        """Convert frame to base64 for transmission with compression"""
+        # Reduce JPEG quality for faster encoding and smaller size
+        encode_params = [cv2.IMWRITE_JPEG_QUALITY, quality]
+        _, buffer = cv2.imencode('.jpg', frame, encode_params)
         return base64.b64encode(buffer).decode('utf-8')
 
 

@@ -1,29 +1,34 @@
-<<<<<<< HEAD
 # Aerial Threat Detection System
-=======
-<<<<<<< HEAD
-# Aerial-Threat-Detection
-=======
-# Aerial Object Detection System
->>>>>>> main
 
-> AI-powered desktop application for detecting and classifying objects in aerial footage using YOLOv8
+> AI-powered desktop application for detecting and classifying objects in aerial footage using YOLO11s & YOLOv8s
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8%2B-blue)
 ![Node](https://img.shields.io/badge/node-14%2B-green)
-![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-orange)
+![YOLO](https://img.shields.io/badge/YOLO-v11s%20%7C%20v8s-orange)
 
-## 🎯 Features
+## ✨ Features
 
 - 🎨 **Modern Landing Page** - Engaging welcome interface with smooth transitions
-- 🤖 **YOLOv8 Detection** - State-of-the-art AI object detection
-- 🎥 **Video & Image Support** - Process MP4, AVI, MOV, MKV, WebM, JPG, PNG
-- 🎨 **Color-Coded Results** - Red (soldiers), Green (civilians), Yellow (other)
+- 🤖 **Dual Model Support** - YOLO11s (Latest) & YOLOv8s (Legacy)
+- 🔥 **Hot Model Switching** - Swap between models instantly without restart
+- 🎥 **Multi-Source Input** - Video files, Images, and YouTube URLs
+- 🌐 **YouTube Integration** - Direct video download and processing from YouTube
+- 🎯 **Color-Coded Detection** - Red (soldiers), Green (civilians)
 - 📊 **Real-time Progress** - Live monitoring and statistics
 - 💾 **Export Results** - Download annotated videos/images
 - ⚡ **GPU Acceleration** - CUDA support for faster processing
 - 🖥️ **Cross-platform** - Windows, macOS, Linux
+- 🚀 **Auto-Start Server** - Python backend starts automatically with `npm start`
+
+## 🆕 New in v2.0
+
+- ✅ **YOLO11s Support** - Latest YOLO model with improved accuracy
+- ✅ **Hot Model Switching** - Change models on-the-fly
+- ✅ **YouTube URL Support** - Process videos directly from YouTube
+- ✅ **Multiple Input Types** - Video, Image, and YouTube URL support
+- ✅ **Auto-Server Start** - Backend starts automatically when running `npm start`
+- ✅ **Enhanced UI** - Model selector and input type toggles
 
 ## 📋 Prerequisites
 
@@ -65,13 +70,17 @@ pip install -r requirements.txt
 
 ## 🎮 Running the App
 
-**Quick Start:**
+**Quick Start (Auto-starts backend server):**
 ```bash
-start.bat      # Windows
-./start.sh     # Linux/Mac
+npm start      # Both frontend and backend start automatically
 ```
 
-**Manual Start:**
+**Development Mode:**
+```bash
+npm run dev    # Starts with DevTools enabled
+```
+
+**Manual Start (if needed):**
 ```bash
 # Terminal 1 - Backend
 python backend/server.py
@@ -82,22 +91,39 @@ npm start
 
 ## 📖 How to Use
 
+### Video/Image Processing
 1. Launch the app → Landing page appears
 2. Click **"Start Detection"**
-3. Upload video or image file
-4. Configure frame skip (optional)
-5. Click **"Start Detection"**
-6. View real-time progress and results
-7. Download processed file with annotations
+3. Select input type: **Video**, **Image**, or **YouTube**
+4. Upload file or enter YouTube URL
+5. Select model: **YOLO11s** or **YOLOv8s**
+6. Configure frame skip (for videos)
+7. Click **"Start Detection"**
+8. View real-time progress and results
+9. Download processed file with annotations
+
+### Hot Model Switching
+- Use the model selector dropdown at the top
+- Switch between **YOLO11s** and **YOLOv8s** anytime
+- Model changes instantly without restarting
+
+### YouTube Video Processing
+1. Click **YouTube** tab
+2. Paste YouTube video URL
+3. Click **"Load YouTube Video"**
+4. Wait for download to complete
+5. Process as normal video
 
 ## 🏗️ Project Structure
 
 ```
 Aerial-Threat-Detection/
 ├── backend/
-│   ├── detect.py           # YOLOv8 detection engine
-│   └── server.py           # Flask API server
+│   ├── detect.py           # YOLO detection engine (v11s & v8s)
+│   └── server.py           # Flask API server with hot swap
 ├── models/
+│   ├── yolo11s.pt         # YOLO11s model (latest)
+│   └── yolov8s.pt         # YOLOv8s model (legacy)
 │   └── yolov8s.pt          # Model (auto-downloads)
 ├── uploads/                # Uploaded files
 ├── outputs/                # Processed results

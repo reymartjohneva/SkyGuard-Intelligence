@@ -42,12 +42,9 @@ Thumbs.db
 desktop.ini
 
 # Application specific
-uploads/*.mp4
-uploads/*.avi
-uploads/*.mov
-uploads/*.mkv
-uploads/*.webm
-!uploads/README.md
+uploads/
+!uploads/.gitkeep
+outputs/*.mp4
 
 outputs/*.mp4
 outputs/*.avi
