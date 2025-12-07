@@ -294,6 +294,11 @@ def detect_youtube():
     url_hash = hashlib.md5(youtube_url.encode()).hexdigest()[:10]
     timestamp = int(time.time())
     video_filename = f'youtube_{url_hash}_{timestamp}.mp4'
+    
+    # Ensure upload folder exists and get absolute path
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    
+    # Use absolute paths for reliability
     video_path = os.path.abspath(os.path.join(UPLOAD_FOLDER, video_filename))
     output_filename = f'detected_youtube_{url_hash}_{timestamp}.mp4'
     output_path = os.path.abspath(os.path.join(OUTPUT_FOLDER, output_filename))
@@ -314,23 +319,26 @@ def detect_youtube():
         try:
             # Download YouTube video using yt-dlp Python module
             print(f"Downloading YouTube video: {youtube_url}")
+            print(f"Saving to: {video_path}")
             
             ydl_opts = {
-                'format': 'best[ext=mp4]/best',
+                'format': 'best[height<=720][ext=mp4]/best[height<=720]/best',
                 'outtmpl': video_path,
                 'quiet': False,
                 'no_warnings': False,
                 'noplaylist': True,
-                'progress_hooks': [lambda d: print(f"Download progress: {d.get('status', 'unknown')}")],
+                'nocheckcertificate': True,
             }
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([youtube_url])
+                info = ydl.extract_info(youtube_url, download=True)
+                print(f"Downloaded: {info.get('title', 'Unknown')}")
             
             if not os.path.exists(video_path):
-                raise Exception("Downloaded video file not found")
+                raise Exception(f"Downloaded video file not found at {video_path}")
             
-            print(f"Download complete. Processing video...")
+            print(f"Download complete. File size: {os.path.getsize(video_path)} bytes")
+            print(f"Processing video...")
             processing_status[job_id]['status'] = 'processing'
             
             # Get video FPS for proper playback timing

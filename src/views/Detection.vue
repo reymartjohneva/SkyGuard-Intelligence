@@ -122,8 +122,16 @@
               <span>{{ framesProcessed }}</span>
             </div>
             <div class="stat">
-              <span>Detections:</span>
+              <span>Total Detections:</span>
               <span>{{ totalDetections }}</span>
+            </div>
+            <div class="stat stat-soldier">
+              <span>🎯 Soldiers:</span>
+              <span>{{ soldierCount }}</span>
+            </div>
+            <div class="stat stat-civilian">
+              <span>👤 Civilians:</span>
+              <span>{{ civilianCount }}</span>
             </div>
           </div>
         </div>
@@ -139,25 +147,14 @@
             <p>No media loaded</p>
           </div>
           
-          <!-- Status Overlay for YouTube Download -->
-          <div v-if="isProcessing && processingStatus === 'downloading'" class="status-overlay">
-            <div class="status-content">
-              <div class="loading-spinner"></div>
-              <h3>📹 Downloading YouTube Video...</h3>
-              <p>Please wait while we fetch the video</p>
+          <!-- Small Status Badge (not covering video) -->
+          <div v-if="isProcessing" class="status-badge">
+            <div class="status-badge-content">
+              <div class="small-spinner"></div>
+              <span v-if="processingStatus === 'downloading'">📹 Downloading...</span>
+              <span v-else-if="progress < 5">⚙️ Initializing...</span>
+              <span v-else>🎬 Processing {{ progress }}%</span>
             </div>
-          </div>
-          
-          <!-- Status Overlay for Processing -->
-          <div v-else-if="isProcessing && processingStatus === 'processing' && progress < 5" class="status-overlay">
-            <div class="status-content">
-              <div class="loading-spinner"></div>
-              <h3>⚙️ Initializing Detection...</h3>
-              <p>Preparing video for analysis</p>
-            </div>
-          </div>
-          <div v-if="isProcessing" class="processing-overlay">
-            <div class="spinner"></div>
           </div>
         </div>
       </div>
@@ -1168,6 +1165,29 @@ h2 {
   font-weight: 700;
 }
 
+/* Soldier and Civilian specific styles */
+.stat-soldier {
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.stat-soldier span:last-child {
+  color: #ef4444;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.stat-civilian {
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.stat-civilian span:last-child {
+  color: #10b981;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
 /* Right Preview Panel */
 .preview-panel {
   background: rgba(0, 0, 0, 0.3);
@@ -1220,56 +1240,33 @@ h2 {
   text-align: center;
 }
 
-.processing-overlay {
+/* Small Status Badge (non-blocking) */
+.status-badge {
   position: absolute;
-  top: 2rem;
-  right: 2rem;
-  background: rgba(15, 23, 42, 0.9);
-  padding: 1rem;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(15, 23, 42, 0.95);
+  padding: 0.75rem 1.25rem;
   border-radius: 12px;
-  border: 1px solid rgba(167, 139, 250, 0.3);
+  border: 1px solid rgba(167, 139, 250, 0.4);
   backdrop-filter: blur(10px);
+  z-index: 5;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
-/* Status Overlay for Download/Processing */
-.status-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(10px);
+.status-badge-content {
   display: flex;
   align-items: center;
-  justify-content: center;
-  z-index: 10;
-  border-radius: 16px;
-}
-
-.status-content {
-  text-align: center;
-  padding: 2rem;
-}
-
-.status-content h3 {
-  font-size: 1.5rem;
-  margin-bottom: 0.5rem;
+  gap: 0.75rem;
   color: #fff;
-  font-weight: 700;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
-.status-content p {
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.7);
-  margin-top: 0.5rem;
-}
-
-.loading-spinner {
-  width: 60px;
-  height: 60px;
-  margin: 0 auto 1.5rem;
-  border: 4px solid rgba(167, 139, 250, 0.2);
+.small-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(167, 139, 250, 0.3);
   border-top-color: #a78bfa;
   border-radius: 50%;
   animation: spin 1s linear infinite;
