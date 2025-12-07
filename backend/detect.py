@@ -124,8 +124,8 @@ class ObjectDetector:
             thickness = 3
             cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, thickness)
             
-            # Prepare label text with detailed confidence percentage
-            label = f"{class_name.upper()} {confidence:.1%}"
+            # Prepare label text (class name only, no confidence)
+            label = f"{class_name.upper()}"
             
             # Get text size for background
             font = cv2.FONT_HERSHEY_SIMPLEX
